@@ -11,6 +11,7 @@ import com.stage.security.jwt.service.IJwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -22,7 +23,7 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final IJwtService jwtService;
-
+    
     public User register(RegisterRequest registerRequest) {
         User user = new User();
 
@@ -47,18 +48,23 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
         return userRepository.save(user);
     }
 
+
+
     public JwtAuthenticationResponse login(LoginRequest loginRequest) {
-        authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
-                loginRequest.getEmail(),
-                loginRequest.getPassword())
+        // Authentifier l'utilisateur
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword())
         );
 
-        var user = userRepository.findByEmail(loginRequest.getEmail()).orElseThrow(() -> new IllegalArgumentException("Invalid username or password"));
-        var jwt = jwtService.generateToken(user);
+        // Récupérer l'utilisateur depuis la base de données
+        User user = userRepository.findByEmail(loginRequest.getEmail())
+                .orElseThrow(() -> new UsernameNotFoundException("Utilisateur non trouvé"));
 
-        JwtAuthenticationResponse jwtAuthenticationResponse = new JwtAuthenticationResponse();
-        jwtAuthenticationResponse.setToken(jwt);
-        return jwtAuthenticationResponse;
+        // Générer le token JWT
+        String token = jwtService.generateToken(user);
+
+        // Retourner le token et le rôle de l'utilisateur
+        return new JwtAuthenticationResponse(token, user.getRole().name());
     }
 
 }
